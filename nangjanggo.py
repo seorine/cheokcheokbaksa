@@ -152,6 +152,41 @@ class FridgeManager:
         for item in expiring:
             print(f"- {item['name']} ({item['expiry']})")
 
+    # [NEW]
+    def get_expired(self):
+        """
+        이미 유통기한이 지난 식재료 목록만 반환.
+        (오늘 날짜 기준 exp < today)
+        """
+        today = datetime.today().date()
+        result = []
+
+        for item in self.ingredients:
+            try:
+                exp = datetime.strptime(item["expiry"], "%Y-%m-%d").date()
+            except ValueError:
+                # 날짜 형식이 잘못되어 있으면 그냥 스킵
+                continue
+
+            if exp < today:
+                result.append((item, (today - exp).days))  # (식재료, 며칠 지남)
+
+        return result
+
+    # [NEW]
+    def print_expired_alert(self):
+        """
+        이미 유통기한이 지난 식재료들을 출력해 주는 함수.
+        """
+        expired = self.get_expired()
+        if not expired:
+            print("유통기한이 지난 식재료가 없습니다.")
+            return
+
+        print("[유통기한 지난 식재료]")
+        for item, days_over in expired:
+            print(f"- {item['name']} ({item['expiry']}) | {days_over}일 지남")
+
     def get_storage_tip(self, item):
         """
         아주 단순한 규칙 기반 보관 팁.
@@ -166,6 +201,19 @@ class FridgeManager:
             return "유제품은 온도 변화가 적은 안쪽 선반에 두는 것이 좋습니다."
         else:
             return "각 제품의 포장지에 있는 보관 방법을 참고하세요."
+
+    # [NEW]
+    def remove_ingredient(self, index_1based):
+        """
+        번호(1부터 시작)를 받아서 해당 식재료를 삭제하는 함수.
+        """
+        idx = index_1based - 1
+        if 0 <= idx < len(self.ingredients):
+            removed = self.ingredients.pop(idx)
+            self.save()
+            print(f"[-] 삭제됨: {removed['name']} (유통기한: {removed['expiry']})")
+        else:
+            print("올바르지 않은 번호입니다.")
 
 # -----------------------------------
 # AI 레시피 추천 모델
@@ -307,6 +355,8 @@ def main_cli():
         print("5. 레시피 추천 (AI)")
         print("6. 레시피 피드백 저장 (좋아요/싫어요)")
         print("7. AI 모델 학습하기")
+        print("8. 유통기한 지난 식재료 보기")   # [NEW]
+        print("9. 식재료 삭제")               # [NEW]
         print("0. 종료")
         cmd = input("메뉴 선택: ").strip()
 
@@ -332,6 +382,8 @@ def main_cli():
         elif cmd == "4":
             # 특정 재료 하나를 골라서 보관 팁 보여주기
             fridge.list_ingredients()
+            if not fridge.ingredients:
+                continue
             idx = int(input("보관 방법을 알고 싶은 번호: "))
             if 1 <= idx <= len(fridge.ingredients):
                 item = fridge.ingredients[idx - 1]
@@ -361,6 +413,25 @@ def main_cli():
         elif cmd == "7":
             # 지금까지 쌓인 피드백으로 AI 모델 재학습
             ai.train_model()
+
+        elif cmd == "8":
+            # [NEW] 이미 유통기한이 지난 식재료 보기
+            fridge.print_expired_alert()
+
+        elif cmd == "9":
+            # [NEW] 식재료 삭제
+            fridge.list_ingredients()
+            if not fridge.ingredients:
+                continue
+            idx_str = input("삭제할 식재료 번호 (취소: 엔터): ").strip()
+            if not idx_str:
+                continue
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                print("숫자를 입력하세요.")
+                continue
+            fridge.remove_ingredient(idx)
 
         elif cmd == "0":
             # 루프 종료 → 프로그램 종료
